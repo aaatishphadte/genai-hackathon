@@ -1,7 +1,7 @@
 # Smart Shopping Suggestions
 
 
-  # Project Title
+  # Smart Shopping Suggestions
   [![Build Status](https://img.shields.io/github/workflow/status/aaatishphadte/genai-hackathon/build)](https://github.com/aaatishphadte/genai-hackathon/actions)
   [![License](https://img.shields.io/github/license/aaatishphadte/genai-hackathon)](LICENSE)
   [![Version](https://img.shields.io/badge/version-1.0-blue)](https://github.com/aaatishphadte/genai-hackathon)
