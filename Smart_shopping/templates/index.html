@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Shopping</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1d2433; --muted:#667085; --line:#e4e7ec; --accent:#4f46e5; --good:#12805c; --bad:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--ink); color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+  header h1 { margin:0; font-size:20px; }
+  .status { font-size:13px; opacity:.85; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px; display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+  @media (max-width:600px) { header { padding:14px 16px; } .card { padding:16px; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  .card h2 { margin:0 0 12px; font-size:16px; }
+  form.search { display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=text] { padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px; min-width:180px; }
+  button { padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; cursor:pointer; font-size:14px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; font-size:13px; color:var(--muted); align-items:center; }
+  .chips a { padding:3px 10px; border:1px solid var(--line); border-radius:99px; text-decoration:none; color:var(--ink); background:#fff; }
+  .profile { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px 20px; }
+  .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .products { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+  .product { border:1px solid var(--line); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:8px; }
+  .product .top { display:flex; justify-content:space-between; color:var(--muted); font-size:13px; }
+  .product h3 { margin:0; font-size:17px; }
+  .reason { background:#eef0ff; border-radius:8px; padding:8px 10px; font-size:14px; }
+  .bars { display:grid; grid-template-columns:80px 1fr; gap:3px 8px; font-size:12px; color:var(--muted); align-items:center; }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; }
+  .bar span { display:block; height:100%; background:var(--accent); }
+  .actions { display:flex; gap:6px; margin-top:auto; }
+  .actions button { flex:1; }
+  .error { color:var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .tag-purchase { color:var(--good); } .tag-ignore { color:var(--bad); } .tag-click { color:var(--accent); }
+  .table-wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛒 Smart Shopping: multi-agent recommendations</h1>
+  <div class="status">
+    {% if ollama_up %}🟢 Ollama connected ({{ model }}){% else %}🟠 Ollama offline: rule-based ranking & explanations{% endif %}
+  </div>
+</header>
+<main>
+  <section class="card">
+    <form class="search" method="get" action="/">
+      <input type="text" name="customer" placeholder="Customer ID, e.g. C1000" value="{{ customer_id }}" required>
+      <button class="primary" type="submit">Recommend</button>
+    </form>
+    {% for segment, ids in samples.items() %}
+    <div class="chips"><span>{{ segment }}:</span>
+      {% for cid in ids %}<a href="/?customer={{ cid }}">{{ cid }}</a>{% endfor %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if result and result.error %}
+  <section class="card error">{{ result.error }}</section>
+  {% elif result %}
+  {% set c = result.customer %}
+  <section class="card">
+    <h2>👤 Customer Agent</h2>
+    <div class="profile">
+      <div><div class="label">Customer</div>{{ c.customer_id }} · {{ c.age }} · {{ c.gender }} · {{ c.location }}</div>
+      <div><div class="label">Segment</div>{{ c.customer_segment }}</div>
+      <div><div class="label">Avg order value</div>₹{{ '%.0f' % c.avg_order_value }}</div>
+      <div><div class="label">Context</div>{{ c.season }}{% if c.holiday == 'Yes' %} · holiday{% endif %}</div>
+      <div><div class="label">Browsed</div>{{ c.browsing_history | join(', ') }}</div>
+      <div><div class="label">Bought</div>{{ c.purchase_history | join(', ') }}</div>
+    </div>
+    <p><span class="label">Strategy</span><br>{{ result.strategy.description }}</p>
+    <p><span class="label">Preference summary {% if result.llm_used %}(LLM, cached in memory){% else %}(rule-based){% endif %}</span><br>{{ result.preferences }}</p>
+  </section>
+
+  <section class="card">
+    <h2>📦 Recommendation Agent {% if result.llm_used %}(LLM re-ranked){% else %}(rule-based){% endif %}</h2>
+    <div class="products">
+      {% for item in result.recommendations %}
+      <div class="product">
+        <div class="top"><span>#{{ item.rank }} · {{ item.product_id }}</span><span>match {{ '%.2f' % item.score }}</span></div>
+        <h3>{{ item.subcategory }}</h3>
+        <div>{{ item.category }} · {{ item.brand }} · ₹{{ '%.0f' % item.price }} · ★{{ item.product_rating }}</div>
+        <div class="reason">{{ item.reason }}</div>
+        <div class="bars">
+          {% for name, value in item.signals.items() %}
+          <span>{{ name.replace('_', ' ') }}</span><div class="bar"><span style="width:{{ (value * 100) | round }}%"></span></div>
+          {% endfor %}
+        </div>
+        <form class="actions" method="post" action="/feedback">
+          <input type="hidden" name="customer_id" value="{{ c.customer_id }}">
+          <input type="hidden" name="product_id" value="{{ item.product_id }}">
+          {% for action in actions %}<button name="action" value="{{ action }}">{{ action }}</button>{% endfor %}
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>🧠 Feedback Agent: long-term memory</h2>
+    {% set fb = result.feedback_signals %}
+    <p>
+      Actions logged: {% for a, n in summary.items() %}{{ a }} × {{ n }}{% if not loop.last %}, {% endif %}{% else %}none yet{% endfor %}<br>
+      Liked types: {{ fb.liked_subcategories | sort | join(', ') or '—' }} ·
+      Disliked types: {{ fb.disliked_subcategories | sort | join(', ') or '—' }} ·
+      Hidden products: {{ fb.excluded_products | length }}
+    </p>
+    {% if history %}
+    <div class="table-wrap">
+    <table>
+      <tr><th>When</th><th>Product</th><th>Rank</th><th>Score</th><th>Strategy</th><th>Feedback</th></tr>
+      {% for h in history %}
+      <tr><td>{{ h.timestamp }}</td><td>{{ h.product_id }}</td><td>{{ h.rank }}</td><td>{{ '%.2f' % h.score }}</td>
+          <td>{{ h.strategy }}</td><td class="tag-{{ h.action }}">{{ h.action or '' }}</td></tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</main>
+</body>
+</html>

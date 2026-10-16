@@ -1,11 +1,18 @@
+# build_sqlite_db.py
+#
+# Loads both CSVs into db/ecommerce.db and creates the long-term memory tables.
 
+import os
 import sqlite3
 import pandas as pd
 import ast
 
+import config
+from utils.db import init_catalog_tables, init_memory_tables
+
 # Load data
-customer_df = pd.read_csv("customer_data_collection.csv")
-product_df = pd.read_csv("product_recommendation_data.csv")
+customer_df = pd.read_csv(config.CUSTOMER_CSV)
+product_df = pd.read_csv(config.PRODUCT_CSV)
 
 # Clean and parse list columns
 customer_df['Browsing_History'] = customer_df['Browsing_History'].apply(ast.literal_eval)
@@ -13,42 +20,12 @@ customer_df['Purchase_History'] = customer_df['Purchase_History'].apply(ast.lite
 product_df['Similar_Product_List'] = product_df['Similar_Product_List'].apply(ast.literal_eval)
 
 # Connect to SQLite
-conn = sqlite3.connect("ecommerce.db")
+os.makedirs(os.path.dirname(config.DB_PATH), exist_ok=True)
+conn = sqlite3.connect(config.DB_PATH)
 cur = conn.cursor()
 
 # Create tables
-cur.execute("""
-CREATE TABLE IF NOT EXISTS customers (
-    customer_id TEXT PRIMARY KEY,
-    age INTEGER,
-    gender TEXT,
-    location TEXT,
-    browsing_history TEXT,
-    purchase_history TEXT,
-    customer_segment TEXT,
-    avg_order_value REAL,
-    holiday TEXT,
-    season TEXT
-)
-""")
-
-cur.execute("""
-CREATE TABLE IF NOT EXISTS products (
-    product_id TEXT PRIMARY KEY,
-    category TEXT,
-    subcategory TEXT,
-    price REAL,
-    brand TEXT,
-    avg_rating_similar REAL,
-    product_rating REAL,
-    sentiment_score REAL,
-    holiday TEXT,
-    season TEXT,
-    geo_location TEXT,
-    similar_products TEXT,
-    probability_of_recommendation REAL
-)
-""")
+init_catalog_tables(conn)
 
 # Insert data into customers table
 for _, row in customer_df.iterrows():
@@ -88,6 +65,7 @@ for _, row in product_df.iterrows():
     ))
 
 conn.commit()
+init_memory_tables(conn)
 conn.close()
 
-print("SQLite database created successfully as ecommerce.db")
+print(f"SQLite database created successfully at {config.DB_PATH}")

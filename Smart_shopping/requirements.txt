@@ -1,2 +1,6 @@
 ollama
 requests
+numpy
+pandas
+flask
+pytest

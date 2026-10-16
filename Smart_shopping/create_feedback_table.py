@@ -1,20 +1,14 @@
-import sqlite3
+import config
+from utils.db import connect, init_memory_tables
+
 
 def create_feedback_table():
-    conn = sqlite3.connect("db/ecommerce.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS feedback (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id TEXT NOT NULL,
-        product_id TEXT NOT NULL,
-        action TEXT CHECK(action IN ('click', 'purchase', 'ignore')) NOT NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-    
-    conn.commit()
+    """Creates feedback plus the other long-term memory tables (idempotent)."""
+    conn = connect(config.DB_PATH)
+    init_memory_tables(conn)
     conn.close()
 
-create_feedback_table()
+
+if __name__ == "__main__":
+    create_feedback_table()
+    print(f"Memory tables ready in {config.DB_PATH}")
